@@ -46,9 +46,9 @@ Operation::
 // size of each block  
 namespace py = pybind11;
 
-__constant__ float D_MAT[9];
+__constant__ int D_MAT[9];
 __constant__ int D_BLC_Offset[4];
-__constant__ float D_LSC[4];
+__constant__ int D_LSC[4];
 
 struct configuration
 {
@@ -63,14 +63,14 @@ struct configuration
     bool BLC = true;
     std::vector<int> BLC_Offset;
     bool LSC = true;
-    std::vector<float> LSC_gain;
-    float LSC_Max_radius=0.0f;
+    std::vector<int> LSC_gain;
+    int LSC_Max_radius=0.0f;
     bool AWB = true;
-    std::vector<float> CCM_gain;
+    std::vector<int> CCM_gain;
     bool CCM=true;
     bool GAMMA=true;
-    float GAMMA_VALUE = 2.2f;
-    std::vector<float> AWB_gain;
+    int GAMMA_VALUE = 2.2f;
+    std::vector<int> AWB_gain;
     bool AWB_Value_Given = false;
     bool Color_Space_Conversion = true;
 
@@ -166,7 +166,7 @@ __global__ void BLC_kernel(int* Image, int width, int length)
 }
 
 /* this program is an execution of Defective Pixel Consealment on digital bayer domain images*/
-__global__ void LSC_kernel(int* Image , int width, int Length, float Max_radius)                                                                                                            // gain is for every color in bayer format image assed in the input configuration. 
+__global__ void LSC_kernel(int* Image , int width, int Length, int Max_radius)                                                                                                            // gain is for every color in bayer format image assed in the input configuration. 
 {
 
     // Lens Shading Correction calculation
@@ -174,10 +174,10 @@ __global__ void LSC_kernel(int* Image , int width, int Length, float Max_radius)
     if(y<Length && x<width) //boundary check
     {
         long idx= (y)* width  + (x);
-        float a[2][2]={{D_LSC[0],D_LSC[1]},{D_LSC[2],D_LSC[3]}};
-        float dx = float(width)/2.0f -x; //dx distance from centre to x (here x is x)
-        float dy = float(Length)/2.0f -y;//dy distance from centre to y (here y is y)
-        float r = sqrtf(dx*dx + dy*dy); //radius r calculation
+        int a[2][2]={{D_LSC[0],D_LSC[1]},{D_LSC[2],D_LSC[3]}};
+        int dx = int(width)/2.0f -x; //dx distance from centre to x (here x is x)
+        int dy = int(Length)/2.0f -y;//dy distance from centre to y (here y is y)
+        int r = sqrtf(dx*dx + dy*dy); //radius r calculation
         
         Image[idx] = (int)(Image[idx]*( 1.0f + r*a[y%2][x%2]/ Max_radius));  /*lens shading correction modelled as a linear function (original lens shading is modelled
                                                                                 as a cos^4 function which will be implemented in a future version. this is adopted only for development purpose)*/
@@ -292,7 +292,7 @@ __global__ void AWBG_kernel(int* Image , unsigned long long* awbg,int orientatio
     }
 }
 
-__global__ void AWBG_Apply_kernel(int* Image ,float gain_r,float gain_g,float gain_b, int precision, int orientation,int width, int length)                                                 // || BGGR - 0 ||  GBRG -1 || GRBG -2 || RGGB -3 ||             || awbg- || 0-> green || 1-> blue || 2-> red  ||
+__global__ void AWBG_Apply_kernel(int* Image ,int gain_r,int gain_g,int gain_b, int precision, int orientation,int width, int length)                                                 // || BGGR - 0 ||  GBRG -1 || GRBG -2 || RGGB -3 ||             || awbg- || 0-> green || 1-> blue || 2-> red  ||
 {
     int x=blockIdx.x * blockDim.x + threadIdx.x, y=blockIdx.y * blockDim.y + threadIdx.y;
     int idx= (y)* width  + (x);
@@ -371,7 +371,7 @@ __global__ void DEBAYER_kernel_1(int* Image , int* output, int orientation,int w
     int x=blockIdx.x * block_dim + threadIdx.x, y=blockIdx.y * block_dim + threadIdx.y;                                                 //int j=blockIdx.x * block_dim + threadIdx.x, i=blockIdx.y * block_dim + threadIdx.y;
     int idx= abs(y-=2)* width  + abs(x-=2);
 
-    __shared__ float buffer[20][21];   // in format [y][x]
+    __shared__ int buffer[20][21];   // in format [y][x]
 
     int tx=threadIdx.x, ty=threadIdx.y;  // thread x and thread y
     buffer[ty][tx] =0;
@@ -409,8 +409,8 @@ __global__ void DEBAYER_kernel_1(int* Image , int* output, int orientation,int w
                 }
                 else
                 {
-                    float dv = fabsf(buffer[ty-1][tx] - buffer[ty+1][tx]) + fabsf(2* buffer[ty][tx] -(buffer[ty-2][tx] + buffer[ty+2][tx]));
-                    float dh = fabsf(buffer[ty][tx-1] - buffer[ty][tx+1]) + fabsf(2* buffer[ty][tx] -(buffer[ty][tx-2] + buffer[ty][tx+2]));
+                    int dv = fabsf(buffer[ty-1][tx] - buffer[ty+1][tx]) + fabsf(2* buffer[ty][tx] -(buffer[ty-2][tx] + buffer[ty+2][tx]));
+                    int dh = fabsf(buffer[ty][tx-1] - buffer[ty][tx+1]) + fabsf(2* buffer[ty][tx] -(buffer[ty][tx-2] + buffer[ty][tx+2]));
 
                     if (dh>dv)
                     {
@@ -437,8 +437,8 @@ __global__ void DEBAYER_kernel_1(int* Image , int* output, int orientation,int w
                 }
                 else
                 {
-                    float dv = fabsf(buffer[ty-1][tx] - buffer[ty+1][tx]) + fabsf(2* buffer[ty][tx] -(buffer[ty-2][tx] + buffer[ty+2][tx]));
-                    float dh = fabsf(buffer[ty][tx-1] - buffer[ty][tx+1]) + fabsf(2* buffer[ty][tx] -(buffer[ty][tx-2] + buffer[ty][tx+2]));
+                    int dv = fabsf(buffer[ty-1][tx] - buffer[ty+1][tx]) + fabsf(2* buffer[ty][tx] -(buffer[ty-2][tx] + buffer[ty+2][tx]));
+                    int dh = fabsf(buffer[ty][tx-1] - buffer[ty][tx+1]) + fabsf(2* buffer[ty][tx] -(buffer[ty][tx-2] + buffer[ty][tx+2]));
 
                     if (dh>dv)
                     {
@@ -465,7 +465,7 @@ __global__ void DEBAYER_kernel_2(int* Image , int* green, int* red, int* blue, i
     int x=blockIdx.x * block_dim + threadIdx.x, y=blockIdx.y * block_dim + threadIdx.y;                                                 //int j=blockIdx.x * block_dim + threadIdx.x, i=blockIdx.y * block_dim + threadIdx.y;
     int idx= abs(y-=2)* width  + abs(x-=2);
 
-    __shared__ float buffer1[20][21], bufferg[20][21] ;
+    __shared__ int buffer1[20][21], bufferg[20][21] ;
 
     int tx=threadIdx.x, ty=threadIdx.y;
 
@@ -663,9 +663,9 @@ __global__ void Transform_Kernel(int* channel_1, int* channel_2, int* channel_3,
 }
 
 // matrix multiplication function to multiply continuous linear transformations together
-void MATRIX_MULTIPLICATION(float* matrix_1, const float* matrix_2, int dim)
+void MATRIX_MULTIPLICATION(int* matrix_1, const int* matrix_2, int dim)
 {
-    std::vector<float> output(dim * dim, 0.0f);
+    std::vector<int> output(dim * dim, 0.0f);
     for(int i=0;i<dim;i++)
     {
         for(int j=0;j<dim;j++)
@@ -801,9 +801,9 @@ py::tuple ISP(py::array_t<int> Image, const configuration& cfg )
     {
         if(cfg.LSC_gain.size() != 4)
         {
-            throw std::runtime_error("LSC Gain must contain exactly 4 float values");
+            throw std::runtime_error("LSC Gain must contain exactly 4 int values");
         }
-        cudaMemcpyToSymbol( D_LSC, cfg.LSC_gain.data(), 4 * sizeof(float));
+        cudaMemcpyToSymbol( D_LSC, cfg.LSC_gain.data(), 4 * sizeof(int));
         LSC_kernel<<<dim3(blockx,blocky),dim3(block_dim,block_dim)>>>(D_image_2,cfg.width,cfg.length,cfg.LSC_Max_radius);
         cudaDeviceSynchronize();
 
@@ -818,9 +818,9 @@ py::tuple ISP(py::array_t<int> Image, const configuration& cfg )
     ////////////////////////////////////////////////////
     if(cfg.AWB)
     {
-        float GAIN_RED;
-        float GAIN_GREEN;
-        float GAIN_BLUE;
+        int GAIN_RED;
+        int GAIN_GREEN;
+        int GAIN_BLUE;
         if(!cfg.AWB_Value_Given)
         {
             unsigned long long* D_AWBG;
@@ -834,9 +834,9 @@ py::tuple ISP(py::array_t<int> Image, const configuration& cfg )
 
             cudaMemcpy(H_AWBG, D_AWBG, 3 * sizeof(unsigned long long), cudaMemcpyDeviceToHost);
 
-            GAIN_RED = (float)(double(H_AWBG[0])/double(2*H_AWBG[2]));
+            GAIN_RED = (int)(double(H_AWBG[0])/double(2*H_AWBG[2]));
             GAIN_GREEN = 1.0f;
-            GAIN_BLUE = (float)(double(H_AWBG[0])/double(2*H_AWBG[1]));
+            GAIN_BLUE = (int)(double(H_AWBG[0])/double(2*H_AWBG[1]));
             cudaFree(D_AWBG);
 
         }
@@ -892,10 +892,10 @@ py::tuple ISP(py::array_t<int> Image, const configuration& cfg )
     {
         if(cfg.CCM_gain.size() != 9)
         {
-            throw std::runtime_error("CCM must contain exactly 9 floats");
+            throw std::runtime_error("CCM must contain exactly 9 ints");
         }
 
-        cudaMemcpyToSymbol( D_MAT, cfg.CCM_gain.data(), 9 * sizeof(float));
+        cudaMemcpyToSymbol( D_MAT, cfg.CCM_gain.data(), 9 * sizeof(int));
         Transform_Kernel<<<dim3(blockx,blocky),dim3(block_dim,block_dim)>>>(CHANNEL_0, CHANNEL_1, CHANNEL_2, cfg.white_level, cfg.width, cfg.length);
         cudaDeviceSynchronize();
     }
@@ -910,7 +910,7 @@ py::tuple ISP(py::array_t<int> Image, const configuration& cfg )
     if(cfg.GAMMA)
     {
         unsigned char *D_LUT;
-        float x;
+        int x;
 
         cudaMalloc(&D_LUT, (cfg.white_level+1) * sizeof(unsigned char));
 
@@ -918,7 +918,7 @@ py::tuple ISP(py::array_t<int> Image, const configuration& cfg )
 
         for(int i=0;i<(cfg.white_level+1);i++)
         {
-            x = float(i)/float(cfg.white_level);
+            x = int(i)/int(cfg.white_level);
             x = powf(x, (1.0f/cfg.GAMMA_VALUE));
 
             LUT[i] = (int)roundf(x*255);
@@ -939,8 +939,8 @@ py::tuple ISP(py::array_t<int> Image, const configuration& cfg )
     ////////////////////////////////////////////////////
     if(cfg.Color_Space_Conversion)
     {
-        float CSC[9] = {0.2988, 0.5869, 0.1143, -0.1689, -0.3311, 0.5000, 0.5000, -0.4189, -0.0811};
-        cudaMemcpyToSymbol( D_MAT, CSC, 9 * sizeof(float));
+        int CSC[9] = {0.2988, 0.5869, 0.1143, -0.1689, -0.3311, 0.5000, 0.5000, -0.4189, -0.0811};
+        cudaMemcpyToSymbol( D_MAT, CSC, 9 * sizeof(int));
         Transform_Kernel<<<dim3(blockx,blocky),dim3(block_dim,block_dim)>>>(CHANNEL_0, CHANNEL_1, CHANNEL_2, cfg.white_level, cfg.width, cfg.length);
         cudaDeviceSynchronize();
     }
@@ -956,8 +956,8 @@ py::tuple ISP(py::array_t<int> Image, const configuration& cfg )
     ////////////////////////////////////////////////////
     if(cfg.Color_Space_Conversion)
     {
-        float CSC[9] = {1, -0.0012, 1.402, 1, -0.3444, -0.7141, 1, 1.772, 0.0008241};
-        cudaMemcpyToSymbol( D_MAT, CSC, 9 * sizeof(float));
+        int CSC[9] = {1, -0.0012, 1.402, 1, -0.3444, -0.7141, 1, 1.772, 0.0008241};
+        cudaMemcpyToSymbol( D_MAT, CSC, 9 * sizeof(int));
         Transform_Kernel<<<dim3(blockx,blocky),dim3(block_dim,block_dim)>>>(CHANNEL_0, CHANNEL_1, CHANNEL_2, cfg.white_level, cfg.width, cfg.length);
         cudaDeviceSynchronize();
     }
@@ -1026,10 +1026,10 @@ PYBIND11_MODULE(ISP, m) {
     LSC : bool
         Enable lens shading correction.
 
-    LSC_gain : float vector | 4 values
+    LSC_gain : int vector | 4 values
         gain values for leans shading correction in order (00 , 01, 10, 11)
     
-    LSC_Max_radius : float
+    LSC_Max_radius : int
         max value for lens shading correction radius
 
     AWB : bool
@@ -1038,16 +1038,16 @@ PYBIND11_MODULE(ISP, m) {
     CCM : bool
         Enable color correction matrix.
     
-    CCM_gain : float vector : 9 values
+    CCM_gain : int vector : 9 values
         color correction matrix:: as flattened array in order [00 01 02 10 11 12 20 21 22]
 
     GAMMA : bool
         Enable gamma correction.
     
-    GAMMA_VALUE : float
+    GAMMA_VALUE : int
         value for gamma correction.
     
-    AWB_gain : float vector
+    AWB_gain : int vector
         value for AWG gain.
     
     AWB_value : bool
