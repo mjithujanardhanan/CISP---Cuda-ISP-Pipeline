@@ -20,29 +20,33 @@ cfg = ISP.Configuration()
 cfg.width = x.shape[1]
 cfg.length = x.shape[0]
 cfg.orientation = 3
-cfg.DPC =False
+cfg.DPC =True
 cfg.DPC_threshold = 30
 cfg.BLC = True
 cfg.BLC_Offset = [2047, 2048, 2047, 2047]
-cfg.LSC = False
+cfg.LSC = True
 cfg.LSC_gain = [1.0, 1.0, 1.0, 1.0]
 cfg.LSC_Max_radius = 1.0
 cfg.AWB = True
 cfg.AWB_Value_Given = False
 cfg.AWB_gain = [1.8530800342559814, 0.9290269613265991, 1.3925764560699463]
-cfg.CCM = False
+cfg.CCM = True
 cfg.CCM_gain = [1.2, -0.1, -0.1, -0.1,  1.2,  -0.1, -0.1, -0.1, 1.2]
 cfg.GAMMA = True
 cfg.GAMMA_VALUE = 2.4
 cfg.Color_Space_Conversion = True
 cfg.Brightness_value = 2.5
-cfg.Brightness = True
-cfg.Saturation = True
+cfg.Brightness = False
+cfg.Saturation = False
 cfg.Saturation_value = 1.5
 cfg.Bilateral_Filter = True
 cfg.Bilateral_Domain_STD = 2.5
 cfg.Bilateral_Range_STD = 120.0
 cfg.Bilateral_kernel_size =7
+cfg.Edge_enhancement = True
+cfg.Edge_enhancement_A_Value = 0.7
+cfg.Edge_enhancement_kernel_size = 7
+cfg.Edge_enhancement_STD = 0.5
 
 
 x = x.flatten()
@@ -112,15 +116,14 @@ x = x.flatten()
 # print("\nBest Parameters:")
 # for k, v in study.best_params.items():
 #     print(f"{k}: {v}")
-
+x1 = time.time()
 R, G, B = ISP.ISP(x,cfg)
+x2 = time.time()
+print("Time taken for processing the image: ", x2-x1, "seconds")
 image = np.dstack((R, G, B))
 image = np.astype(image, np.uint8)
 
 # image =  cv2.bilateralFilter(image, 9, 44, 90)
-print("ISP image:", image.shape, image.dtype)
-print("Actual   :", actual.shape, actual.dtype)
-print(cv2.PSNR(image, actual))
 image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
 image = cv2.resize(image, (1920,1080))
 
