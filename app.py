@@ -42,7 +42,7 @@ class ISPPipelineUI(tb.Window):
         # Text Input for Path
         tb.Label(self.main_frame, text="Path:").pack(fill=X, pady=(10, 0))
         self.path_input = tb.Entry(self.main_frame)
-        self.path_input.insert(0, "paste the path to your raw file here:")
+        self.path_input.insert(0, r"Sample_input\test.dng")
         self.path_input.pack(fill=X, pady=(0, 20))
         
         # ADD THIS LINE: Pass the text from the entry box into your new method
@@ -66,7 +66,7 @@ class ISPPipelineUI(tb.Window):
             state="readonly", # 'readonly' prevents users from typing custom garbage text
             bootstyle=INFO
         )
-        self.orientation_dropdown.pack(fill=X, pady=(0, 15))
+        self.orientation_dropdown.pack(fill=X,padx=(0,20), pady=(0, 15))
         
         # Bind the selection event so it updates the image immediately when picked
         self.orientation_dropdown.bind("<<ComboboxSelected>>", lambda event: self.Initialize_parameters())
@@ -203,134 +203,141 @@ class ISPPipelineUI(tb.Window):
             self.control_panel, from_=0.0, to=255.0, bootstyle=INFO
         )
         self.dpc_slider.set(50)
-        self.dpc_slider.pack(fill=X, pady=(0, 10))
+        self.dpc_slider.pack(fill=X, padx=(0,20), pady=(0, 10))                                                                  
 
         # --- Array Input: BLC Offset ---
         tb.Label(self.control_panel, text="BLC Offset (in bayer order):").pack(fill=X, pady=(10, 0))
         
-        self.blc_offset_var = tb.StringVar(value="2047, 2048, 2047, 2047")
+        self.blc_offset_var = tb.StringVar(value=" 0 ,0 ,0 ,0")
         self.blc_array_input = tb.Entry(self.control_panel, textvariable=self.blc_offset_var)
-        self.blc_array_input.pack(fill=X, pady=(0, 10))
+        self.blc_array_input.pack(fill=X,padx=(0,20), pady=(0, 10))
         self.blc_array_input.bind("<Return>")
 
         # --- Array Input: LSC gains ---
         tb.Label(self.control_panel, text="Lens Shading correction radius Gains (0-1):").pack(fill=X, pady=(10, 0))
         
-        self.lsc_offset_var = tb.StringVar(value="0.5,0.5,0.5,0.5")
+        self.lsc_offset_var = tb.StringVar(value=" 0.0 , 0.0, 0.0, 0.0")
         self.lsc_array_input = tb.Entry(self.control_panel, textvariable=self.lsc_offset_var)
-        self.lsc_array_input.pack(fill=X, pady=(0, 10))
+        self.lsc_array_input.pack(fill=X,padx=(0,20), pady=(0, 10))
         self.lsc_array_input.bind("<Return>")
 
         # Float Input
         tb.Label(self.control_panel, text="Lens Shading correction radius (float):").pack(fill=X, pady=(10, 0))
-        self.lsc_radius_var = tb.DoubleVar(value=0.064)
+        self.lsc_radius_var = tb.DoubleVar(value=1.0)
         self.lsc_radius_input = tb.Entry(self.control_panel, textvariable=self.lsc_radius_var)
-        self.lsc_radius_input.pack(fill=X, pady=(0, 10))
+        self.lsc_radius_input.pack(fill=X,padx=(0,20), pady=(0, 10))
         self.lsc_radius_input.bind("<Return>") 
 
-        # --- Array Input: LSC gains ---
+        # --- Array Input: ccm  ---
         tb.Label(self.control_panel, text="Color Correction Matrix:").pack(fill=X, pady=(10, 0))
         
         self.color_correction_var = tb.StringVar(value="1.1, -0.05, -0.05, -0.05, 1.1, -0.05, -0.05, -0.05, 1.1")
         self.color_correction_array_input = tb.Entry(self.control_panel, textvariable=self.color_correction_var)
-        self.color_correction_array_input.pack(fill=X, pady=(0, 10))
+        self.color_correction_array_input.pack(fill=X, padx=(0,20), pady=(0, 10))
         self.color_correction_array_input.bind("<Return>")
 
         # Slider - brightness
         tb.Label(self.control_panel, text="Brightness:").pack(fill=X, pady=(10, 0))
         self.brightness_slider = tb.Scale(
-            self.control_panel, from_=-2.0, to=3.0, bootstyle=INFO
+            self.control_panel, from_=1.0, to=3.0, bootstyle=INFO
         )
-        self.brightness_slider.set(50)
-        self.brightness_slider.pack(fill=X, pady=(0, 10))
+        self.brightness_slider.set(0)
+        self.brightness_slider.pack(fill=X, padx=(0,20), pady=(0, 10))
 
         # Slider - Saturation
         tb.Label(self.control_panel, text="Saturation:").pack(fill=X, pady=(10, 0))
         self.Saturation_slider = tb.Scale(
             self.control_panel, from_=0.0, to=3.0, bootstyle=INFO
         )
-        self.Saturation_slider.set(50)
-        self.Saturation_slider.pack(fill=X, pady=(0, 10))
+        self.Saturation_slider.set(1.0)
+        self.Saturation_slider.pack(fill=X, padx=(0,20), pady=(0, 10))
 
         # Slider - Hue
         tb.Label(self.control_panel, text="Hue:").pack(fill=X, pady=(10, 0))
         self.Hue_slider = tb.Scale(
             self.control_panel, from_=0.0, to=(2 * np.pi), bootstyle=INFO
         )
-        self.Hue_slider.set(50)
-        self.Hue_slider.pack(fill=X, pady=(0, 10))
+        self.Hue_slider.set(0)
+        self.Hue_slider.pack(fill=X, padx=(0,20), pady=(0, 10))
 
         # Slider - Contrast
         tb.Label(self.control_panel, text="Contrast:").pack(fill=X, pady=(10, 0))
         self.Contrast_slider = tb.Scale(
             self.control_panel, from_=1.0, to=1.4, bootstyle=INFO
         )
-        self.Contrast_slider.set(50)
-        self.Contrast_slider.pack(fill=X, pady=(0, 10))
+        self.Contrast_slider.set(0)
+        self.Contrast_slider.pack(fill=X, padx=(0,20), pady=(0, 10))
 
         # Slider - Tint
         tb.Label(self.control_panel, text="Tint:").pack(fill=X, pady=(10, 0))
         self.Tint_slider = tb.Scale(
             self.control_panel, from_=0.0, to=100.0, bootstyle=INFO
         )
-        self.Tint_slider.set(50)
-        self.Tint_slider.pack(fill=X, pady=(0, 10))
+        self.Tint_slider.set(0)
+        self.Tint_slider.pack(fill=X, padx=(0,20), pady=(0, 10))
 
         # Slider - Vibrance
         tb.Label(self.control_panel, text="Vibrance:").pack(fill=X, pady=(10, 0))
         self.Vibrance_slider = tb.Scale(
             self.control_panel, from_=1.0, to=3.0, bootstyle=INFO
         )
-        self.Vibrance_slider.set(50)
-        self.Vibrance_slider.pack(fill=X, pady=(0, 10))
+        self.Vibrance_slider.set(0)
+        self.Vibrance_slider.pack(fill=X,padx=(0,20), pady=(0, 10))
 
         # Float Input
         tb.Label(self.control_panel, text="Bilateral filter - range STD (Float):").pack(fill=X, pady=(10, 0))
-        self.RSTD_var = tb.DoubleVar(value=0.064)
+        self.RSTD_var = tb.DoubleVar(value=40)
         self.RSTD_input = tb.Entry(self.control_panel, textvariable=self.RSTD_var)
-        self.RSTD_input.pack(fill=X, pady=(0, 10))
+        self.RSTD_input.pack(fill=X, padx=(0,20), pady=(0, 10))
         self.RSTD_input.bind("<Return>") 
 
 
         # Float Input
         tb.Label(self.control_panel, text="Bilateral filter - domain STD (Float):").pack(fill=X, pady=(10, 0))
-        self.DSTD_var = tb.DoubleVar(value=0.064)
+        self.DSTD_var = tb.DoubleVar(value=0.5)
         self.DSTD_input = tb.Entry(self.control_panel, textvariable=self.DSTD_var)
-        self.DSTD_input.pack(fill=X, pady=(0, 10))
+        self.DSTD_input.pack(fill=X,padx=(0,20), pady=(0, 10))
         self.DSTD_input.bind("<Return>") 
 
         # Integer Input
         tb.Label(self.control_panel, text="Bilateral Kernel Size (Int):").pack(fill=X, pady=(10, 0))
         self.Bilateral_kernel_var = tb.IntVar(value=3)
         self.Bilateral_kernel_input = tb.Spinbox(self.control_panel, from_=1, to=31, increment=2, textvariable=self.Bilateral_kernel_var)
-        self.Bilateral_kernel_input.pack(fill=X, pady=(0, 10))
+        self.Bilateral_kernel_input.pack(fill=X,padx=(0,20), pady=(0, 10))
         self.Bilateral_kernel_input.bind("<Return>")
 
         # Float Input
         tb.Label(self.control_panel, text="Edge Enhancement - STD (Float):").pack(fill=X, pady=(10, 0))
-        self.EESTD_var = tb.DoubleVar(value=0.064)
+        self.EESTD_var = tb.DoubleVar(value=0.5)
         self.EESTD_input = tb.Entry(self.control_panel, textvariable=self.EESTD_var)
-        self.EESTD_input.pack(fill=X, pady=(0, 10))
+        self.EESTD_input.pack(fill=X, padx=(0,20), pady=(0, 10))
         self.EESTD_input.bind("<Return>") 
 
 
         # Float Input
         tb.Label(self.control_panel, text="Edge Enhancement - Gain (Float):").pack(fill=X, pady=(10, 0))
-        self.EGain_var = tb.DoubleVar(value=0.064)
+        self.EGain_var = tb.DoubleVar(value=0.5)
         self.EGain_input = tb.Entry(self.control_panel, textvariable=self.EGain_var)
-        self.EGain_input.pack(fill=X, pady=(0, 10))
+        self.EGain_input.pack(fill=X, padx=(0,20), pady=(0, 10))
         self.EGain_input.bind("<Return>") 
 
         # Integer Input
         tb.Label(self.control_panel, text="Edge Enhancement Kernel Size (Int):").pack(fill=X, pady=(10, 0))
         self.Edge_kernel_var = tb.IntVar(value=3)
         self.Edge_kernel_input = tb.Spinbox(self.control_panel, from_=1, to=31, increment=2, textvariable=self.Edge_kernel_var)
-        self.Edge_kernel_input.pack(fill=X, pady=(0, 10))
+        self.Edge_kernel_input.pack(fill=X, padx=(0,20), pady=(0, 10))
         self.Edge_kernel_input.bind("<Return>")
+
+        # Float Input
+        tb.Label(self.control_panel, text="Gamma Correction (Float):").pack(fill=X, pady=(10, 0))
+        self.Gamma_correction_var = tb.DoubleVar(value=2.2)
+        self.Gamma_correction_input = tb.Entry(self.control_panel, textvariable=self.Gamma_correction_var)
+        self.Gamma_correction_input.pack(fill=X, padx=(0,20), pady=(0, 10))
+        self.Gamma_correction_input.bind("<Return>") 
 
         # Action Button
         self.process_btn = tb.Button(self.control_panel, text="Run CUDA Kernel", bootstyle=SUCCESS)
-        self.process_btn.pack(fill=X, pady=(0, 20) )
+        self.process_btn.pack(fill=X, padx=(0,20), pady=(0, 20) )
         self.process_btn.bind("<Button-1>", lambda event: self.Action_button())
 
         # --- Right Panel: Image Display ---
@@ -408,7 +415,7 @@ class ISPPipelineUI(tb.Window):
         pil_img = Image.fromarray(img_rgb)
         img_w, img_h = cfg.width , cfg.length
         ratio = 0.25 
-        new_w, new_h = int(img_w * ratio), int(img_h * ratio)
+        new_w, new_h = 800, 600
 
         if new_w > 0 and new_h > 0:
             pil_img = pil_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
@@ -477,8 +484,8 @@ class ISPPipelineUI(tb.Window):
         lsc_str = self.lsc_offset_var.get()
         lsc_list = [float(val.strip()) for val in lsc_str.split(',')]
         if len(lsc_list ) != 4  and cfg.LSC:
-                print("Error: lsc gain requires exactly 4 values.")
-                return
+            print("Error: lsc gain requires exactly 4 values.")
+            return
         cfg.LSC_gain = lsc_list
         cfg.LSC_Max_radius = self.lsc_radius_var.get()
 
@@ -492,8 +499,7 @@ class ISPPipelineUI(tb.Window):
         if len(color_correction_list ) != 9 and cfg.CCM:
                 print("Error: ccm requires exactly 9 values.")
                 return
-        cfg.LSC_gain = color_correction_list
-        cfg.CCM_gain = [1.2, -0.1, -0.1, -0.1,  1.2,  -0.1, -0.1, -0.1, 1.2]
+        cfg.CCM_gain = color_correction_list
 
         cfg.Color_Space_Conversion = self.csc_var_toogle.get()
 
@@ -529,7 +535,7 @@ class ISPPipelineUI(tb.Window):
         cfg.Edge_enhancement_STD = self.EESTD_var.get()
 
         cfg.GAMMA = self.gamma_var_toogle.get()
-        cfg.GAMMA_VALUE = 2.4
+        cfg.GAMMA_VALUE = self.Gamma_correction_var.get()
 
 if __name__ == "__main__":
     app = ISPPipelineUI()

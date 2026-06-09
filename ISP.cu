@@ -972,7 +972,7 @@ py::tuple ISP(py::array_t<float> Image, const configuration& cfg )
     {
         if(cfg.LSC_gain.size() != 4)
         {
-            throw std::runtime_error("LSC Gain must contain exactly 4 int values");
+            throw std::runtime_error("LSC Gain must contain exactly 4 values");
         }
         cudaMemcpyToSymbol( D_LSC, cfg.LSC_gain.data(), 4 * sizeof(float));
         LSC_kernel<<<dim3(blockx,blocky),dim3(block_dim,block_dim)>>>(D_image_2,cfg.LSC_Max_radius);
