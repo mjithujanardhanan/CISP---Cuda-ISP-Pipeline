@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-import tkinter as tk  # Needed for tk.TclError and state constants
+import tkinter as tk  
 import ttkbootstrap as tb
 from ttkbootstrap.constants import *
 from ttkbootstrap.scrolled import ScrolledFrame
@@ -44,21 +44,15 @@ class ISPPipelineUI(tb.Window):
         self.path_input = tb.Entry(self.main_frame)
         self.path_input.insert(0, r"Sample_input\test.dng")
         self.path_input.pack(fill=X, pady=(0, 20))
-        
-        # ADD THIS LINE: Pass the text from the entry box into your new method
         self.path_input.bind("<Return>", lambda event: self.Load_image(self.path_input.get()))
 
         # --- Left Panel: Scrollable Controls ---
-        # ScrolledFrame prevents widgets from cutting off on smaller screens
         self.control_panel = ScrolledFrame(self.main_frame, width=320, autohide=True)
         self.control_panel.pack(side=LEFT, fill=Y, padx=(0, 15))
 
         # --- Drop-Down List (Combobox) for Orientation ---
         tb.Label(self.control_panel, text="Image Orientation:").pack(fill=X, pady=(10, 0))
-        
-        # Define the variable to hold the selected value
         self.orientation_var = tb.StringVar(value="BGGR")
-        
         self.orientation_dropdown = tb.Combobox(
             self.control_panel, 
             textvariable=self.orientation_var,
@@ -67,8 +61,6 @@ class ISPPipelineUI(tb.Window):
             bootstyle=INFO
         )
         self.orientation_dropdown.pack(fill=X,padx=(0,20), pady=(0, 15))
-        
-        # Bind the selection event so it updates the image immediately when picked
         self.orientation_dropdown.bind("<<ComboboxSelected>>", lambda event: self.Initialize_parameters())
 
         # --- Pipeline Toggle Switches ---
@@ -122,7 +114,7 @@ class ISPPipelineUI(tb.Window):
         )
         self.csc_cb.pack(fill=X, pady=10)
 
-        # --- Dependent Sub-Toggles (Slightly Indented) ---
+        # --- Dependent Sub-Toggles  ---
         
         self.brightness_var_toogle = tb.BooleanVar(value=False)
         self.brightness_cb = tb.Checkbutton(
@@ -192,11 +184,7 @@ class ISPPipelineUI(tb.Window):
 
         # --- Entry Controls Area ---
         tb.Separator(self.control_panel, bootstyle="secondary").pack(fill=X, pady=15)
-
-
-
-
-
+        
         # Slider
         tb.Label(self.control_panel, text="Defective Pixel Limit (0- 255 ):").pack(fill=X, pady=(10, 0))
         self.dpc_slider = tb.Scale(
@@ -336,29 +324,52 @@ class ISPPipelineUI(tb.Window):
         self.Gamma_correction_input.bind("<Return>") 
 
         # Action Button
-        self.process_btn = tb.Button(self.control_panel, text="Run CUDA Kernel", bootstyle=SUCCESS)
+        self.process_btn = tb.Button(self.control_panel, text="Run Kernel", bootstyle=SUCCESS)
         self.process_btn.pack(fill=X, padx=(0,20), pady=(0, 20) )
         self.process_btn.bind("<Button-1>", lambda event: self.Action_button())
 
-        # --- Right Panel: Image Display ---
+        # Action Button
+        self.process_btn = tb.Button(self.control_panel, text="Save Image", bootstyle=SUCCESS)
+        self.process_btn.pack(fill=X, padx=(0,20), pady=(0, 20) )
+        self.process_btn.bind("<Button-1>", lambda event: self.save_image())
+
+        # --- Right Panel: Image Display & Console ---
         self.image_frame = tb.Frame(self.main_frame, bootstyle="secondary")
         self.image_frame.pack(side=RIGHT, fill=BOTH, expand=True)
 
+        # 1. Console Output Box (Packed BOTTOM)
+        self.console_frame = tb.Frame(self.image_frame)
+        self.console_frame.pack(side=BOTTOM, fill=X, pady=(10, 0))
+
+        tb.Label(self.console_frame, text="Pipeline Logs:", font=("Helvetica", 10, "bold")).pack(anchor=NW)
+        
+        # Text widget for logs.
+        self.console_box = tb.Text(self.console_frame, height=6, wrap=WORD)
+        self.console_box.pack(fill=X, pady=(5, 0))
+        self.console_box.insert(END, "ISP Profiler initialized...\n")
+        self.console_box.configure(state=DISABLED) # Make it read-only for the user
+
+        # 2. Image Label
         self.image_label = tb.Label(self.image_frame, text="Image will appear here", anchor=CENTER)
-        self.image_label.pack(fill=BOTH, expand=True)
+        self.image_label.pack(side=TOP, fill=BOTH, expand=True)
 
         self.tk_image = None 
         self.bind("<Configure>", self.on_resize)
         
         self.run_pipeline()
 
+
+    def log_data(self, message):
+        self.console_box.configure(state=NORMAL)       
+        self.console_box.insert(END, f"{message}\n")   
+        self.console_box.see(END)                      
+        self.console_box.configure(state=DISABLED)     
+
     def csc_master_callback(self):
-        """Wrapper method executing both required tasks when Master Toggle changes."""
         self.update_sub_toggles()
         self.run_pipeline()
 
     def update_sub_toggles(self):
-        """Checks the boolean state variable and toggles child elements."""
         if self.csc_var_toogle.get():
             self.brightness_cb.configure(state=NORMAL)
             self.saturation_cb.configure(state=NORMAL)
@@ -374,7 +385,7 @@ class ISPPipelineUI(tb.Window):
             self.tint_cb.configure(state=DISABLED)
             self.vibrance_cb.configure(state=DISABLED)
             
-            # Reset the hidden logic parameters to False when hidden
+
             self.brightness_var.set(False)
             self.saturation_var.set(False)
             self.hue_var.set(False)
@@ -428,14 +439,13 @@ class ISPPipelineUI(tb.Window):
             self.display_image()
     
     def Load_image(self, Path):
-        """Loads the image from the provided path, stores it, and displays it."""
 
         if Pt(Path).suffix in RAW_EXTS:
             with rawpy.imread(Path) as raw:
                 loaded_img = np.array(raw.raw_image_visible.copy())
                 cfg.white_level = raw.white_level
         else:
-            print(f"Error: Could not load image. Unsupported format")
+            self.log_data(f"Error: Could not load image. Unsupported format")
             return
         
         cfg.width = loaded_img.shape[1]
@@ -443,23 +453,12 @@ class ISPPipelineUI(tb.Window):
 
         
             
-        print(f"Loaded successfully: {Path} | Shape: {cfg.width} , {cfg.length}")
+        self.log_data(f"Loaded successfully: {Path} | Shape: {cfg.width} , {cfg.length}")
         
-        # Store the original raw image so your pipeline can re-process it
-        # without needing to reload from the disk every time a slider moves.
         self.raw_input_img = loaded_img.flatten()
-        
-        # Pass the image to the display renderer
         self.current_cv_img = loaded_img
         self.display_image()
-        
-    # def run_LSC(self):
-    
-    # def run_BLC(self):
 
-    # def run_AWB(self):
-
-    # def run_CCM(self):
 
     def Action_button(self):
         self.Initialize_parameters()
@@ -476,7 +475,7 @@ class ISPPipelineUI(tb.Window):
         blc_str = self.blc_offset_var.get()
         blc_list = [int(val.strip()) for val in blc_str.split(',')]
         if len(blc_list ) != 4  and cfg.BLC:
-                print("Error: BLC Offset requires exactly 4 values.")
+                self.log_data("Error: BLC Offset requires exactly 4 values.")
                 return
         cfg.BLC_Offset = blc_list
 
@@ -484,7 +483,7 @@ class ISPPipelineUI(tb.Window):
         lsc_str = self.lsc_offset_var.get()
         lsc_list = [float(val.strip()) for val in lsc_str.split(',')]
         if len(lsc_list ) != 4  and cfg.LSC:
-            print("Error: lsc gain requires exactly 4 values.")
+            self.log_data("Error: lsc gain requires exactly 4 values.")
             return
         cfg.LSC_gain = lsc_list
         cfg.LSC_Max_radius = self.lsc_radius_var.get()
@@ -497,7 +496,7 @@ class ISPPipelineUI(tb.Window):
         color_correction_str = self.color_correction_var.get()
         color_correction_list = [float(val.strip()) for val in color_correction_str.split(',')]
         if len(color_correction_list ) != 9 and cfg.CCM:
-                print("Error: ccm requires exactly 9 values.")
+                self.log_data("Error: ccm requires exactly 9 values.")
                 return
         cfg.CCM_gain = color_correction_list
 
@@ -536,6 +535,14 @@ class ISPPipelineUI(tb.Window):
 
         cfg.GAMMA = self.gamma_var_toogle.get()
         cfg.GAMMA_VALUE = self.Gamma_correction_var.get()
+    def save_image(self):
+        if not hasattr(self, 'current_cv_img'):
+            self.log_data(" Image not loaded")
+            return
+
+        cv2.imwrite("output.jpg", cv2.cvtColor(self.current_cv_img,cv2.COLOR_BGR2RGB))
+        self.log_data(" Image saved")
+        
 
 if __name__ == "__main__":
     app = ISPPipelineUI()
