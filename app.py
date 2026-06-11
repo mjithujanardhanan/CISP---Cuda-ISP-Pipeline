@@ -163,9 +163,17 @@ class ISPPipelineUI(tb.Window):
         self.Bilateral_Filter_toogle = tb.BooleanVar(value=False)
         self.Bilateral_Filter = tb.Checkbutton(
             self.control_panel, text="Bilateral Filter", 
-            variable=self.Bilateral_Filter_toogle, bootstyle="round-toggle", state=DISABLED
+            variable=self.Bilateral_Filter_toogle, bootstyle="round-toggle", state=DISABLED, command= self.bilateral_master_callback
         )
         self.Bilateral_Filter.pack(fill=X, padx=20, pady=5)
+
+        #Joint Bilateral Filter
+        self.Joint_Bilateral_toogle = tb.BooleanVar(value=False)
+        self.Joint_Bilateral = tb.Checkbutton(
+            self.control_panel, text="Joint_Bilateral", 
+            variable=self.Joint_Bilateral_toogle, bootstyle="round-toggle", state=DISABLED
+        )
+        self.Joint_Bilateral.pack(fill=X, padx=30, pady=5)
 
         #High Boost Filter
         self.Edge_enhancement_toogle = tb.BooleanVar(value=False)
@@ -174,6 +182,14 @@ class ISPPipelineUI(tb.Window):
             variable=self.Edge_enhancement_toogle, bootstyle="round-toggle", state=DISABLED
         )
         self.Edge_enhancement.pack(fill=X, padx=20, pady=5)
+
+        #Gaussian Blur Filter
+        self.Gaussian_blur_toogle = tb.BooleanVar(value=False)
+        self.Gaussian_blur = tb.Checkbutton(
+            self.control_panel, text="Blur(Gaussian)", 
+            variable=self.Gaussian_blur_toogle, bootstyle="round-toggle", state=DISABLED
+        )
+        self.Gaussian_blur.pack(fill=X, padx=20, pady=5)
 
 
         # Gamma Correction
@@ -295,7 +311,7 @@ class ISPPipelineUI(tb.Window):
         # Integer Input
         tb.Label(self.control_panel, text="Bilateral Kernel Size (Int):").pack(fill=X, pady=(10, 0))
         self.Bilateral_kernel_var = tb.IntVar(value=3)
-        self.Bilateral_kernel_input = tb.Spinbox(self.control_panel, from_=1, to=31, increment=2, textvariable=self.Bilateral_kernel_var)
+        self.Bilateral_kernel_input = tb.Spinbox(self.control_panel, from_=1, to=15, increment=2, textvariable=self.Bilateral_kernel_var)
         self.Bilateral_kernel_input.pack(fill=X,padx=(0,20), pady=(0, 10))
         self.Bilateral_kernel_input.bind("<Return>")
 
@@ -317,9 +333,23 @@ class ISPPipelineUI(tb.Window):
         # Integer Input
         tb.Label(self.control_panel, text="Edge Enhancement Kernel Size (Int):").pack(fill=X, pady=(10, 0))
         self.Edge_kernel_var = tb.IntVar(value=3)
-        self.Edge_kernel_input = tb.Spinbox(self.control_panel, from_=1, to=31, increment=2, textvariable=self.Edge_kernel_var)
+        self.Edge_kernel_input = tb.Spinbox(self.control_panel, from_=1, to=15, increment=2, textvariable=self.Edge_kernel_var)
         self.Edge_kernel_input.pack(fill=X, padx=(0,20), pady=(0, 10))
         self.Edge_kernel_input.bind("<Return>")
+
+        # Gaussian Filter
+        tb.Label(self.control_panel, text="Gaussian- STD (Float):").pack(fill=X, pady=(10, 0))
+        self.gaussian_var = tb.DoubleVar(value=0.5)
+        self.gaussian_input = tb.Entry(self.control_panel, textvariable=self.gaussian_var)
+        self.gaussian_input.pack(fill=X, padx=(0,20), pady=(0, 10))
+        self.gaussian_input.bind("<Return>") 
+
+        # Gaussian filter kernel size
+        tb.Label(self.control_panel, text="Gaussian Filter Kernel Size (Int):").pack(fill=X, pady=(10, 0))
+        self.gaussian_kernel_var = tb.IntVar(value=3)
+        self.gaussian_kernel_input = tb.Spinbox(self.control_panel, from_=1, to=15, increment=2, textvariable=self.gaussian_kernel_var)
+        self.gaussian_kernel_input.pack(fill=X, padx=(0,20), pady=(0, 10))
+        self.gaussian_kernel_input.bind("<Return>")
 
         # Float Input
         tb.Label(self.control_panel, text="Gamma Correction (Float):").pack(fill=X, pady=(10, 0))
@@ -370,6 +400,12 @@ class ISPPipelineUI(tb.Window):
         self.console_box.see(END)                      
         self.console_box.configure(state=DISABLED)     
 
+    def bilateral_master_callback(self):
+        if self.Bilateral_Filter_toogle.get():
+            self.Joint_Bilateral.configure(state=NORMAL)
+        else:
+            self.Joint_Bilateral.configure(state=DISABLED)
+
     def csc_master_callback(self):
         self.update_sub_toggles()
         #self.run_pipeline()
@@ -384,6 +420,7 @@ class ISPPipelineUI(tb.Window):
             self.vibrance_cb.configure(state=NORMAL)
             self.Bilateral_Filter.configure(state=NORMAL)
             self.Edge_enhancement.configure(state=NORMAL)
+            self.Gaussian_blur.configure(state=NORMAL)
         else:
             self.brightness_cb.configure(state=DISABLED)
             self.saturation_cb.configure(state=DISABLED)
@@ -393,6 +430,8 @@ class ISPPipelineUI(tb.Window):
             self.vibrance_cb.configure(state=DISABLED)
             self.Bilateral_Filter.configure(state=DISABLED)
             self.Edge_enhancement.configure(state=DISABLED)
+            self.Joint_Bilateral.configure(state=DISABLED)
+            self.Gaussian_blur.configure(state=DISABLED)
 
             
 
@@ -459,7 +498,7 @@ class ISPPipelineUI(tb.Window):
         self.log_data(f"Loaded successfully: {Path} | Shape: {cfg.width} , {cfg.length}")
         
         self.raw_input_img = loaded_img.flatten()
-        self.current_cv_img = loaded_img
+        self.current_cv_img = (loaded_img /cfg.white_level)*255 
         self.display_image()
 
 
@@ -526,14 +565,46 @@ class ISPPipelineUI(tb.Window):
 
 
         cfg.Bilateral_Filter = self.Bilateral_Filter_toogle.get()
-        cfg.Bilateral_Domain_STD = self.DSTD_var.get()
+        cfg.Joint_bilateral_kernel = self.Joint_Bilateral_toogle.get()
+        cfg.Bilateral_spatial_STD = self.DSTD_var.get()
         cfg.Bilateral_Range_STD = self.RSTD_var.get()
         cfg.Bilateral_kernel_size = self.Bilateral_kernel_var.get()
+        if cfg.Bilateral_kernel_size > 15:
+            cfg.Bilateral_kernel_size = 15
+            self.Bilateral_kernel_var.set(15)
+        elif cfg.Bilateral_kernel_size < 1:
+            cfg.Bilateral_kernel_size = 1
+            self.Bilateral_kernel_var.set(1)
+        elif cfg.Bilateral_kernel_size % 2 == 0:
+            cfg.Bilateral_kernel_size = cfg.Bilateral_kernel_size -1
+            self.Bilateral_kernel_var.set(cfg.Bilateral_kernel_size)
 
+        cfg.Gaussian_blur = self.Gaussian_blur_toogle.get()
+        cfg.Gaussian_STD = self.gaussian_var.get()
+        cfg.Gaussian_blur_kernel_size = self.gaussian_kernel_var.get()
+        if cfg.Gaussian_blur_kernel_size > 15:
+            cfg.Gaussian_blur_kernel_size = 15
+            self.gaussian_kernel_var.set(15)
+        elif cfg.Gaussian_blur_kernel_size < 1:
+            cfg.Gaussian_blur_kernel_size = 1
+            self.gaussian_kernel_var.set(1)
+        elif cfg.Gaussian_blur_kernel_size % 2 == 0:
+            cfg.Gaussian_blur_kernel_size = cfg.Gaussian_blur_kernel_size -1
+            self.gaussian_kernel_var.set(cfg.Gaussian_blur_kernel_size)
 
         cfg.Edge_enhancement = self.Edge_enhancement_toogle.get()
         cfg.Edge_enhancement_A_Value = self.EGain_var.get()
-        cfg.Edge_enhancement_kernel_size = self.Bilateral_kernel_var.get()
+        cfg.Edge_enhancement_kernel_size = self.Edge_kernel_var.get()
+        if cfg.Edge_enhancement_kernel_size > 15:
+            cfg.Edge_enhancement_kernel_size = 15
+            self.Edge_kernel_var.set(15)
+        elif cfg.Edge_enhancement_kernel_size < 1:
+            cfg.Edge_enhancement_kernel_size = 1
+            self.Edge_kernel_var.set(1)
+        elif cfg.Edge_enhancement_kernel_size % 2 == 0:
+            cfg.Edge_enhancement_kernel_size = cfg.Edge_enhancement_kernel_size -1
+            self.Edge_kernel_var.set(cfg.Edge_enhancement_kernel_size)
+
         cfg.Edge_enhancement_STD = self.EESTD_var.get()
 
         cfg.GAMMA = self.gamma_var_toogle.get()

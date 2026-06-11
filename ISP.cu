@@ -53,8 +53,10 @@ __constant__ float D_BLC_Offset[4];                                             
 __constant__ float D_LSC[4];                                                            //Lens shading correction values
 __constant__ float D_EDGE[256];                                                         //max kernel size = 16 
 __constant__ float D_hue[4];                                                            // Rotation matrix for hue adjustment
+__constant__ float D_GAUSSIAN[256];                                                     // max Gaussian Kernel size = 16
 __constant__ int D_width;                                                               //constant variables for image height and width
 __constant__ int D_length;
+
 
 
 struct configuration                                                                    //Structure for pipeline configurations
@@ -97,14 +99,19 @@ struct configuration                                                            
     float   Vibrance_value = 1.0f;                                                      //value for vibrance
 
     bool    Bilateral_Filter = false;                                                   //toogle bilateral filter
+    bool    Joint_bilateral_kernel = false;
     int     Bilateral_kernel_size = 3;                                                  //filter kernel size
-    float   Bilateral_Domain_STD = 10.0f;                                               // Domain standard deviation
+    float   Bilateral_spatial_STD = 10.0f;                                              // Domain standard deviation
     float   Bilateral_Range_STD = 10.0f;                                                // Range standard deviation
 
     bool    Edge_enhancement = false;                                                   // Toogle highboost filter
     float   Edge_enhancement_A_Value = 0.0f;                                            // high boost scaling factor
     int     Edge_enhancement_kernel_size = 3;                                           // kernel size
     float   Edge_enhancement_STD = 1;                                                   // edge enhancement standard deviation
+
+    bool    Gaussian_blur = false;
+    float   Gaussian_STD = 1.0f;
+    int     Gaussian_blur_kernel_size = 3;
 
     bool    GAMMA=true;                                                                 //Toogle gamma
     float   GAMMA_VALUE = 2.2f;                                                         // value for gamma correction
@@ -172,9 +179,6 @@ __global__ void DP_kernel(float* Image , float* image_out, float threshold)     
         }
 
     }
-
-
-
 }
 
 /* this program is an execution of Black Level correction on digital bayer domain images*/
@@ -827,6 +831,57 @@ __global__ void Bilateral_filter_kernel(float* channel_input, float* channel_out
 
 }
 
+__global__ void Bilateral_filter_kernel(float* channel_0,float* channel_1,float* channel_2, float* channel_output_0, float* channel_output_1, float* channel_output_2, int shared_size,  int shared_vol, int padding, float spatial_variance, float range_variance)
+{
+    int x=blockIdx.x * blockDim.x + threadIdx.x, y=blockIdx.y * blockDim.y + threadIdx.y;
+    int idx= (y)* D_width  + (x);  
+    //int shared_size = block_dim + 2*padding;
+    int ty = threadIdx.y, tx = threadIdx.x;
+    int ty0 = ty+padding, tx0 = tx+padding;
+    extern __shared__ float buffer[];
+    for(int l = 0; (ty + l * block_dim) < shared_size; l++)
+        for(int m = 0; (tx + m * block_dim)< shared_size; m++)
+        {
+            int x0 = reflect_padding((x - padding) + m * block_dim , D_width );
+            int y0 = reflect_padding((y - padding) + l * block_dim , D_length );
+
+            buffer[(ty + l * block_dim) * shared_size + (tx + m * block_dim)] = channel_0[y0 * D_width + x0];
+            buffer[shared_vol + (ty + l * block_dim) * shared_size + (tx + m * block_dim)] = channel_1[y0 * D_width + x0];
+            buffer[2 * shared_vol + (ty + l * block_dim) * shared_size + (tx + m * block_dim)] = channel_2[y0 * D_width + x0];
+
+        }
+
+    __syncthreads();
+    if(y<D_length && x<D_width)
+    {
+        float central_pixel = buffer[ty0 * shared_size + tx0];
+        float norm_sum = 0.0f, kernel_sum_0 = 0.0f, kernel_sum_1 = 0.0f, kernel_sum_2 = 0.0f;
+        float spatial_pdt = 1.0f / (2.0f *spatial_variance*spatial_variance);
+        float range_pdt = 1.0f / (2.0f *range_variance * range_variance);
+        for(int i=-padding; i <= padding; i++)
+            for(int j=-padding; j <= padding; j++)
+            {
+
+                float neighbor_pixel_0 = buffer[(ty0 + i) * shared_size +(tx0+j)],temp;
+                float neighbor_pixel_1 = buffer[ shared_vol + (ty0 + i) * shared_size +(tx0+j)];
+                float neighbor_pixel_2 = buffer[ 2*  shared_vol +(ty0 + i) * shared_size +(tx0+j)];
+
+                float diff = central_pixel - neighbor_pixel_0;
+                temp = __expf( -(( i*i + j*j )*(spatial_pdt) + ((diff )*(diff) )* (range_pdt)));
+                norm_sum += temp;
+                
+                kernel_sum_0 += neighbor_pixel_0* temp;
+                kernel_sum_1 += neighbor_pixel_1* temp;
+                kernel_sum_2 += neighbor_pixel_2* temp;
+            }
+        channel_output_0[idx] = (kernel_sum_0 / norm_sum);
+        channel_output_1[idx] = (kernel_sum_1 / norm_sum);
+        channel_output_2[idx] = (kernel_sum_2 / norm_sum);
+    }
+
+}
+
+
 __global__ void Edge_enhancement_kernel(float* channel_input, float* channel_output, int shared_size, int padding, int kernel_size, float alpha)
 {
     int x=blockIdx.x * blockDim.x + threadIdx.x, y=blockIdx.y * blockDim.y + threadIdx.y;
@@ -861,6 +916,43 @@ __global__ void Edge_enhancement_kernel(float* channel_input, float* channel_out
     }
 
 }
+
+
+/* This kernel applies Gaussian Blur to the image*/
+__global__ void Gaussian_Blur_kernel(float* channel_input, float* channel_output, int shared_size, int padding, int kernel_size)
+{
+    int x=blockIdx.x * blockDim.x + threadIdx.x, y=blockIdx.y * blockDim.y + threadIdx.y;
+    int idx= (y)* D_width  + (x);  
+    //int shared_size = block_dim + 2*padding;
+    
+    int ty = threadIdx.y, tx = threadIdx.x;
+    int ty0 = ty+padding, tx0 = tx+padding;
+    extern __shared__ float buffer[];
+    for(int l = 0; (ty + l * block_dim) < shared_size; l++)
+        for(int m = 0; (tx + m * block_dim)< shared_size; m++)
+        {
+            int x0 = reflect_padding((x - padding) + m * block_dim , D_width );
+            int y0 = reflect_padding((y - padding) + l * block_dim , D_length );
+
+            buffer[(ty + l * block_dim) * shared_size + (tx + m * block_dim)] = channel_input[y0 * D_width + x0];
+        }
+
+    
+    __syncthreads();
+    if(y<D_length && x<D_width)
+    {
+        float kernel_sum = 0.0f;
+        for(int i=-padding; i <= padding; i++)
+            for(int j=-padding; j <= padding; j++)
+            {
+                
+                float neighbor_pixel = buffer[(ty0 + i) * shared_size +(tx0+j)];                
+                kernel_sum += neighbor_pixel* D_GAUSSIAN[(i+padding) * kernel_size + (j + padding)];
+            }
+        channel_output[idx] = kernel_sum;    
+    }
+}
+
 
 // Host code for Image Signal Processing Pipeline
 py::tuple ISP(py::array_t<float> Image, const configuration& cfg )    
@@ -944,7 +1036,7 @@ py::tuple ISP(py::array_t<float> Image, const configuration& cfg )
     //
     //
     ////////////////////////////////////////////////////
-    float* channel_temp = D_Image_1;
+    float* channel_temp_0 = D_Image_1;
 
     ////////////////////////////////////////////////////
     //
@@ -1059,11 +1151,11 @@ py::tuple ISP(py::array_t<float> Image, const configuration& cfg )
     ////////////////////////////////////////////////////
     //
     //
-    //freeing D_image_2 as the source image is no longer required.
+    //freeing D_image_2 as the source image is no longer required so making it a temporary buffer for future calculations.
     //
     //
     ////////////////////////////////////////////////////
-    cudaFree(D_image_2);
+    float* channel_temp_1 = D_image_2;
 
     ////////////////////////////////////////////////////
     //
@@ -1107,21 +1199,88 @@ py::tuple ISP(py::array_t<float> Image, const configuration& cfg )
     //  Channel_0 :: Y   Channel_1 :: Cb    Channel_2 :: Cr
     //
     ////////////////////////////////////////////////////
+    float * channel_temp_2;
+    cudaMalloc(&channel_temp_2, array_size * sizeof(float) );
+
     if(cfg.Color_Space_Conversion && cfg.Bilateral_Filter)
     {
+        if(cfg.Joint_bilateral_kernel)
+        {
+            
+            int padding = cfg.Bilateral_kernel_size /2;
+            int shared_size = block_dim + 2 * padding;
+            int shared_vol = shared_size * shared_size ;
+            int shared_memory_vol = 3 * shared_vol * sizeof(float);
+            Bilateral_filter_kernel<<<dim3(blockx,blocky),dim3(block_dim,block_dim),  shared_memory_vol>>>( CHANNEL_0, CHANNEL_1, CHANNEL_2, channel_temp_0, channel_temp_1, channel_temp_2, shared_size, shared_vol, padding, cfg.Bilateral_spatial_STD , cfg.Bilateral_Range_STD);
+            //cudaDeviceSynchronize();
 
-        int padding = cfg.Bilateral_kernel_size /2;
-        int shared_size = block_dim + 2 * padding;
-        size_t shared_memory_vol = shared_size * shared_size * sizeof(float);
-        Bilateral_filter_kernel<<<dim3(blockx,blocky),dim3(block_dim,block_dim), shared_memory_vol>>>( CHANNEL_0, channel_temp, shared_size, padding, cfg.Bilateral_Domain_STD , cfg.Bilateral_Range_STD);
-        //cudaDeviceSynchronize();
+            float* buf = channel_temp_0;
+            channel_temp_0 = CHANNEL_0;
+            CHANNEL_0 = buf;
 
-        float* buf = channel_temp;
-        channel_temp = CHANNEL_0;
-        CHANNEL_0 = buf;
+            buf = channel_temp_1;
+            channel_temp_1 = CHANNEL_1;
+            CHANNEL_1 = buf;
 
+            buf = channel_temp_2;
+            channel_temp_2 = CHANNEL_2;
+            CHANNEL_2 = buf;
+
+        }
+        else
+        {
+
+            int padding = cfg.Bilateral_kernel_size /2;
+            int shared_size = block_dim + 2 * padding;
+            size_t shared_memory_vol = shared_size * shared_size * sizeof(float);
+            Bilateral_filter_kernel<<<dim3(blockx,blocky),dim3(block_dim,block_dim), shared_memory_vol>>>( CHANNEL_0, channel_temp_0, shared_size, padding, cfg.Bilateral_spatial_STD , cfg.Bilateral_Range_STD);
+            //cudaDeviceSynchronize();
+
+            float* buf = channel_temp_0;
+            channel_temp_0 = CHANNEL_0;
+            CHANNEL_0 = buf;
+        }
 
     }
+
+    ////////////////////////////////////////////////////
+    //
+    //
+    //  Gaussian Blur
+    //  Channel_0 :: Y   Channel_1 :: Cb    Channel_2 :: Cr
+    //
+    ////////////////////////////////////////////////////
+
+    if(cfg.Color_Space_Conversion && cfg.Gaussian_blur )
+    {
+
+
+        int padding = cfg.Gaussian_blur_kernel_size /2;
+        int shared_size = block_dim + 2 * padding;
+        const int kernel_vol = cfg.Gaussian_blur_kernel_size * cfg.Gaussian_blur_kernel_size;
+        size_t shared_memory_vol = shared_size * shared_size * sizeof(float);
+
+        float gaussian[256], sum=0.0f;
+
+        for(int i=-padding ; i <= padding ; i++)
+            for(int j=-padding ; j <= padding ; j++)
+            {
+                gaussian[(i+padding) * cfg.Gaussian_blur_kernel_size + (j+padding)] = std:: exp(-(i*i + j*j)/(2.0f * cfg.Gaussian_STD * cfg.Gaussian_STD) );
+                sum+=gaussian[(i+padding) * cfg.Gaussian_blur_kernel_size + (j+padding)];
+            }
+        for(int i=0 ; i < kernel_vol ; i++) gaussian[i]/=sum;
+
+        cudaMemcpyToSymbol(D_GAUSSIAN, gaussian, kernel_vol * sizeof(float));
+
+        Gaussian_Blur_kernel<<<dim3(blockx,blocky),dim3(block_dim,block_dim), shared_memory_vol>>>( CHANNEL_0, channel_temp_0, shared_size, padding, cfg.Gaussian_blur_kernel_size);
+        //cudaDeviceSynchronize();
+
+        float* buf = channel_temp_0;
+        channel_temp_0 = CHANNEL_0;
+        CHANNEL_0 = buf;
+
+    }
+
     ////////////////////////////////////////////////////
     //
     //
@@ -1130,7 +1289,7 @@ py::tuple ISP(py::array_t<float> Image, const configuration& cfg )
     //
     ////////////////////////////////////////////////////
 
-    if(cfg.Color_Space_Conversion && cfg.Edge_enhancement)
+    if(cfg.Color_Space_Conversion && cfg.Edge_enhancement  )
     {
 
 
@@ -1139,23 +1298,24 @@ py::tuple ISP(py::array_t<float> Image, const configuration& cfg )
         const int kernel_vol = cfg.Edge_enhancement_kernel_size * cfg.Edge_enhancement_kernel_size;
         size_t shared_memory_vol = shared_size * shared_size * sizeof(float);
 
-        float gaussian[256];
+        float gaussian[256], sum=0.0f;
         for(int i=-padding ; i <= padding ; i++)
             for(int j=-padding ; j <= padding ; j++)
             {
-                gaussian[(i+padding) * cfg.Edge_enhancement_kernel_size + (j+padding)] = std:: exp(-(i*i + j*j)/(2.0f * cfg.Edge_enhancement_STD * cfg.Edge_enhancement_STD) ) / (float)kernel_vol;
+                gaussian[(i+padding) * cfg.Edge_enhancement_kernel_size + (j+padding)] = std:: exp(-(i*i + j*j)/(2.0f * cfg.Edge_enhancement_STD * cfg.Edge_enhancement_STD));
+                sum+=gaussian[(i+padding) * cfg.Edge_enhancement_kernel_size + (j+padding)];
             }
+        for(int i=0 ; i < kernel_vol ; i++) gaussian[i]/=sum;
 
-        cudaMemcpyToSymbol(D_EDGE, gaussian, kernel_vol * sizeof(float));
-
-        Edge_enhancement_kernel<<<dim3(blockx,blocky),dim3(block_dim,block_dim), shared_memory_vol>>>( CHANNEL_0, channel_temp, shared_size, padding, cfg.Edge_enhancement_kernel_size,  cfg.Edge_enhancement_A_Value);
+        Edge_enhancement_kernel<<<dim3(blockx,blocky),dim3(block_dim,block_dim), shared_memory_vol>>>( CHANNEL_0, channel_temp_0, shared_size, padding, cfg.Edge_enhancement_kernel_size,  cfg.Edge_enhancement_A_Value);
         //cudaDeviceSynchronize();
 
-        float* buf = channel_temp;
-        channel_temp = CHANNEL_0;
+        float* buf = channel_temp_0;
+        channel_temp_0 = CHANNEL_0;
         CHANNEL_0 = buf;
 
     }
+
 
     ////////////////////////////////////////////////////
     //
@@ -1256,7 +1416,9 @@ py::tuple ISP(py::array_t<float> Image, const configuration& cfg )
     cudaFree(RED);
     cudaFree(GREEN);
     cudaFree(BLUE);
-    cudaFree(channel_temp);
+    cudaFree(channel_temp_0);
+    cudaFree(channel_temp_1);
+    cudaFree(channel_temp_2);
 
     cudaEventRecord(stop);
     cudaEventSynchronize(stop);
@@ -1371,12 +1533,18 @@ PYBIND11_MODULE(ISP, m) {
         .def_readwrite("Vibrance_value", &configuration::Vibrance_value)
         .def_readwrite("Bilateral_Filter", &configuration::Bilateral_Filter)
         .def_readwrite("Bilateral_kernel_size", &configuration::Bilateral_kernel_size)
-        .def_readwrite("Bilateral_Domain_STD", &configuration::Bilateral_Domain_STD)
+        .def_readwrite("Bilateral_spatial_STD", &configuration::Bilateral_spatial_STD)
         .def_readwrite("Bilateral_Range_STD", &configuration::Bilateral_Range_STD)
         .def_readwrite("Edge_enhancement", &configuration::Edge_enhancement)
         .def_readwrite("Edge_enhancement_A_Value", &configuration::Edge_enhancement_A_Value)
         .def_readwrite("Edge_enhancement_kernel_size", &configuration::Edge_enhancement_kernel_size)
-        .def_readwrite("Edge_enhancement_STD", &configuration::Edge_enhancement_STD);
+        .def_readwrite("Edge_enhancement_STD", &configuration::Edge_enhancement_STD)
+        .def_readwrite("Gaussian_blur", &configuration::Gaussian_blur)
+        .def_readwrite("Gaussian_STD", &configuration::Gaussian_STD)
+        .def_readwrite("Gaussian_blur_kernel_size", &configuration::Gaussian_blur_kernel_size)
+        .def_readwrite("Joint_bilateral_kernel", &configuration::Joint_bilateral_kernel);
 
     m.def("ISP", &ISP, "Image Signal Processing Pipeline");
 }
+
+
