@@ -36,7 +36,9 @@ A High-Performance GPU-accelerated Cuda based Image Signal Processor(ISP) that t
 
 ### Image Enhancement
 - Bilateral Filter
+- Joint Bilateral filter (Luma guided filtering - Chroma denoising)
 - Highboost filtering
+- Gaussian Blue
 
 # Tech Stack
 
@@ -93,7 +95,6 @@ input the path to the raw image and press enter to load. The toogle button can b
 # Future work
 
 - Guided Filter
-- chroma denoising
 - histogram equilization
 - image compression
 

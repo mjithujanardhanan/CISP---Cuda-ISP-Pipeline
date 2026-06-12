@@ -959,11 +959,17 @@ py::tuple ISP(py::array_t<float> Image, const configuration& cfg )
 {
 
 
-    cudaEvent_t start, stop;
+    cudaEvent_t start, stop, lap1, lap2, lap3, lap4, lap5, lap6;
+    float ms;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
-
-    cudaEventRecord(start);
+    cudaEventCreate(&lap1);
+    cudaEventCreate(&lap2);
+    cudaEventCreate(&lap3);
+    cudaEventCreate(&lap4);
+    cudaEventCreate(&lap5);
+    cudaEventCreate(&lap6);
+    
 
     ////////////////////////////////////////////////////
     //
@@ -1009,8 +1015,15 @@ py::tuple ISP(py::array_t<float> Image, const configuration& cfg )
     //
     //
     ////////////////////////////////////////////////////
+    cudaEventRecord(start);
+
     cudaMemcpy(D_Image_1 , Input, array_size * sizeof(float), cudaMemcpyHostToDevice);
 
+    cudaEventRecord(lap1);
+    cudaEventSynchronize(lap1);
+    cudaEventElapsedTime(&ms, start, lap1);
+
+    printf("Pipeline GPU time 1: %.3f ms\n", ms);
 
     ////////////////////////////////////////////////////
     //
@@ -1076,6 +1089,10 @@ py::tuple ISP(py::array_t<float> Image, const configuration& cfg )
         //cudaDeviceSynchronize();
 
     }
+    cudaEventRecord(lap2);
+    cudaEventSynchronize(lap2);
+    cudaEventElapsedTime(&ms, lap1, lap2);
+    printf("Pipeline GPU time 2: %.3f ms\n", ms);
 
     ////////////////////////////////////////////////////
     //
@@ -1118,6 +1135,10 @@ py::tuple ISP(py::array_t<float> Image, const configuration& cfg )
         //cudaDeviceSynchronize();
         
     }
+    cudaEventRecord(lap3);
+    cudaEventSynchronize(lap3);
+    cudaEventElapsedTime(&ms, lap2, lap3);
+    printf("Pipeline GPU time 3: %.3f ms\n", ms);
 
     ////////////////////////////////////////////////////
     //
@@ -1148,6 +1169,12 @@ py::tuple ISP(py::array_t<float> Image, const configuration& cfg )
     DEBAYER_kernel_2<<<dim3(blockx,blocky),dim3(block_dim+4 ,block_dim+4)>>>(D_image_2, CHANNEL_1, CHANNEL_0, CHANNEL_2, cfg.orientation);
     //cudaDeviceSynchronize();
 
+
+
+    cudaEventRecord(lap4);
+    cudaEventSynchronize(lap4);
+    cudaEventElapsedTime(&ms, lap3, lap4);
+    printf("Pipeline GPU time 4: %.3f ms\n", ms);
     ////////////////////////////////////////////////////
     //
     //
@@ -1176,7 +1203,10 @@ py::tuple ISP(py::array_t<float> Image, const configuration& cfg )
         //cudaDeviceSynchronize();
     }
 
-    
+    cudaEventRecord(lap5);
+    cudaEventSynchronize(lap5);
+    cudaEventElapsedTime(&ms, lap4, lap5);
+    printf("Pipeline GPU time 5: %.3f ms\n", ms);
     ////////////////////////////////////////////////////
     //
     //
@@ -1389,7 +1419,10 @@ py::tuple ISP(py::array_t<float> Image, const configuration& cfg )
         cudaFree(D_LUT);
     }
 
-    
+    cudaEventRecord(lap6);
+    cudaEventSynchronize(lap6);
+    cudaEventElapsedTime(&ms, lap5, lap6);
+    printf("Pipeline GPU time 5: %.3f ms\n", ms);
 
     py::array_t<int> Red({cfg.length, cfg.width});
     py::array_t<int> Green({cfg.length, cfg.width});
@@ -1423,10 +1456,10 @@ py::tuple ISP(py::array_t<float> Image, const configuration& cfg )
     cudaEventRecord(stop);
     cudaEventSynchronize(stop);
 
-    float ms;
-    cudaEventElapsedTime(&ms, start, stop);
+   
+    cudaEventElapsedTime(&ms, lap6, stop);
 
-    printf("Pipeline GPU time: %.3f ms\n", ms);
+    printf("Pipeline GPU time 6: %.3f ms\n", ms);
 
     return py::make_tuple(Red, Green, Blue);
     
